@@ -147,7 +147,7 @@ function startGitHubIntegration(username, token) {
 
         return {
             repo: parts[0] + '/' + parts[1],
-            issue: parts[2] === 'issues' || parts[2] === 'pulls' ? parts[3] : undefined,
+            issue: parts[2] === 'issues' || parts[2] === 'pull' ? parts[3] : undefined,
         };
     }
 
@@ -251,7 +251,7 @@ function startGitHubIntegration(username, token) {
                   eat(labels, 'effort/medium') ? 'm' :
                   eat(labels, 'effort/large') ? 'l' :
                   undefined,
-            gfi: eat(labels, 'good-first-issue'),
+            gfi: eat(labels, 'good first issue'),
         }
     }
 
@@ -275,7 +275,7 @@ function startGitHubIntegration(username, token) {
         }
 
         if (classif.gfi) {
-            ret.push('good-first-issue');
+            ret.push('good first issue');
         }
 
         return ret;
