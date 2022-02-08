@@ -157,7 +157,7 @@ function startGitHubIntegration(username: string, token: string) {
 
     function createCheckBox(name: string, value: string, caption: string, checked: boolean = false) {
         return [
-            $('<input type="checkbox">').attr('id', name).attr('name', name).attr('value', value).attr('checked', `${checked}`),
+            $('<input type="checkbox">').attr('id', name).attr('name', name).attr('value', value).prop('checked', checked),
             $('<label></label>').attr('for', name).text(caption),
         ];
     }
