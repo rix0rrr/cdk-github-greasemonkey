@@ -1,4 +1,3 @@
-"use strict";
 // ==UserScript==
 // @name         CDK GitHub Enhancements
 // @namespace    http://rix0r.nl/
@@ -12,54 +11,49 @@
 // @grant        GM.getValue
 // @grant        GM.setValue
 // ==/UserScript==
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-function startGitHubIntegration(username, token) {
+
+function startGitHubIntegration(username: string, token: string) {
     'use strict';
+
     /**
      * Polyfill for old GM_addStyle (still exists in TamperMonkey but
      * got removed in GreaseMonkey 4).
      */
-    function GM_addStyle(aCss) {
+    function GM_addStyle(aCss: string) {
         let head = document.getElementsByTagName('head')[0];
-        if (!head) {
-            return null;
-        }
+        if (!head) { return null; }
         let style = document.createElement('style');
         style.setAttribute('type', 'text/css');
         style.textContent = aCss;
         head.appendChild(style);
         return style;
     }
-    function waitForSelector(selector, cb) {
+
+    function waitForSelector(selector: string, cb: () => void) {
         if ($(selector).length > 0) {
             cb();
             return;
         }
         setTimeout(() => waitForSelector(selector, cb), 100);
     }
-    function doIfFound(selector, cb) {
+
+    function doIfFound<A>(selector: string, cb: (x: JQuery) => A) {
         if ($(selector).length > 0) {
             return cb($(selector));
-        }
-        else {
+        } else {
             console.log('Did not find selector: ' + selector);
         }
     }
-    function createGithubButton(caption, primary) {
+
+
+    function createGithubButton(caption: string, primary?: boolean) {
         const btn = $('<button type="button" class="btn btn-sm d-inline-block" aria-expanded="false" style:button"></button>').text(caption);
         if (primary) {
             btn.addClass('btn-primary');
         }
         return btn;
     }
+
     function createPopover() {
         const popover = $('<div class="cdk-overlay"></div>');
         const form = $('<div class="cdk-form"></div>').appendTo(popover);
@@ -68,19 +62,22 @@ function startGitHubIntegration(username, token) {
         return {
             form,
             close: () => popover.remove(),
-            showError: (msg) => {
+            showError: (msg: string) => {
                 errorField.text(msg).show();
             },
         };
     }
+
     function parseCurrentGitHubLocation() {
         const parts = window.location.pathname.substr(1).split('/');
+
         return {
             repo: parts[0] + '/' + parts[1],
             issue: parts[2] === 'issues' || parts[2] === 'pull' ? parts[3] : undefined,
         };
     }
-    function getGitHub(repo, thing) {
+
+    function getGitHub(repo: string, thing: string) {
         return new Promise((ok, ko) => {
             GM.xmlHttpRequest({
                 method: 'GET',
@@ -93,18 +90,18 @@ function startGitHubIntegration(username, token) {
                 onload: (progress) => {
                     if (progress.status.toString().startsWith('2')) {
                         ok(JSON.parse(progress.responseText));
-                    }
-                    else {
+                    } else {
                         ko(new Error('HTTP call failed: ' + progress.status + ' ' + progress.statusText));
                     }
                 },
             });
         });
     }
-    function postGitHub(repo, thing, data, method) {
+
+    function postGitHub(repo: string, thing: string, data: any, method?: 'GET' | 'POST' | 'DELETE') {
         return new Promise((ok, ko) => {
             GM.xmlHttpRequest({
-                method: method !== null && method !== void 0 ? method : 'POST',
+                method: method ?? 'POST',
                 url: 'https://api.github.com/repos/' + repo + '/' + thing,
                 data: JSON.stringify(data),
                 headers: {
@@ -115,104 +112,105 @@ function startGitHubIntegration(username, token) {
                 onload: (progress) => {
                     if (progress.status.toString().startsWith('2')) {
                         ok(JSON.parse(progress.responseText));
-                    }
-                    else {
+                    } else {
                         ko(new Error('HTTP call failed: ' + progress.status + ' ' + progress.statusText));
                     }
                 },
             });
         });
     }
+
+    type JQueryArg = JQuery<any> | string | Array<JQueryArg>;
+
     function Table() {
-        const table = $('<table></table>');
-        table.addRow = function (...elements) {
+        const table: JQuery & { addRow: (...xs: JQueryArg[]) => void } = $('<table></table>') as any;
+
+        table.addRow = function(...elements: JQueryArg[]) {
             const row = $('<tr></tr>').appendTo(table);
             for (let el of arguments) {
                 if (typeof el === 'string') {
                     el = document.createTextNode(el);
                 }
+
                 row.append($('<td></td>').append(el));
             }
-        };
+        }
+
         return table;
     }
-    function createNakedRadio(name, value) {
+
+    function createNakedRadio(name: string, value: string) {
         const id = name + '-' + value;
         return $('<input type="radio">').attr('id', id).attr('name', name).attr('value', value);
     }
-    function createRadioButton(name, value, caption) {
+
+    function createRadioButton(name: string, value: string, caption: string) {
         const id = name + '-' + value;
         return [
             $('<input type="radio">').attr('id', id).attr('name', name).attr('value', value),
             $('<label></label>').attr('for', id).text(caption),
         ];
     }
-    function createCheckBox(name, value, caption, checked = false) {
+
+    function createCheckBox(name: string, value: string, caption: string, checked: boolean = false) {
         return [
             $('<input type="checkbox">').attr('id', name).attr('name', name).attr('value', value).attr('checked', `${checked}`),
             $('<label></label>').attr('for', name).text(caption),
         ];
     }
-    function issueLabels(issue) {
-        return issue.labels.map((i) => i.name);
+
+    function issueLabels(issue: any) {
+        return issue.labels.map((i: any) => i.name);
     }
+
     /**
      * Determine a classification from the given labels and remove the used labels from the list
      */
-    function classificationFromLabels(labels) {
+    function classificationFromLabels(labels: string[]): Classification {
         return {
             type: eat(labels, 'bug') ? 'bug' :
-                eat(labels, 'feature-request') ? 'fr' :
-                    eat(labels, 'guidance') ? 'guidance' :
-                        undefined,
+                  eat(labels, 'feature-request') ? 'fr' :
+                  eat(labels, 'guidance') ? 'guidance' :
+                  undefined,
             prio: eat(labels, 'p1') ? 'p1' :
-                eat(labels, 'p2') ? 'p2' :
-                    undefined,
+                  eat(labels, 'p2') ? 'p2' :
+                  undefined,
             size: eat(labels, 'effort/small') ? 's' :
-                eat(labels, 'effort/medium') ? 'm' :
-                    eat(labels, 'effort/large') ? 'l' :
-                        undefined,
+                  eat(labels, 'effort/medium') ? 'm' :
+                  eat(labels, 'effort/large') ? 'l' :
+                  undefined,
             gfi: eat(labels, 'good first issue'),
-        };
+        }
     }
-    function labelsFromClassification(classif) {
+
+    function labelsFromClassification(classif: Classification) {
         const ret = [];
         switch (classif.type) {
-            case 'bug':
-                ret.push('bug');
-                break;
-            case 'fr':
-                ret.push('feature-request');
-                break;
-            case 'guidance':
-                ret.push('guidance');
-                break;
+            case 'bug': ret.push('bug'); break;
+            case 'fr': ret.push('feature-request'); break;
+            case 'guidance': ret.push('guidance'); break;
         }
+
         switch (classif.prio) {
-            case 'p1':
-                ret.push('p1');
-                break;
-            case 'p2':
-                ret.push('p2');
-                break;
+            case 'p1': ret.push('p1'); break;
+            case 'p2': ret.push('p2'); break;
         }
+
         switch (classif.size) {
-            case 's':
-                ret.push('effort/small');
-                break;
-            case 'm':
-                ret.push('effort/medium');
-                break;
-            case 'l':
-                ret.push('effort/large');
-                break;
+            case 's': ret.push('effort/small'); break;
+            case 'm': ret.push('effort/medium'); break;
+            case 'l': ret.push('effort/large'); break;
         }
+
         if (classif.gfi) {
             ret.push('good first issue');
         }
+
         return ret;
     }
-    function eat(list, element) {
+
+
+    function eat(list: string[], element: string) {
         const i = list.indexOf(element);
         if (i > -1) {
             list.splice(i, 1);
@@ -220,95 +218,121 @@ function startGitHubIntegration(username, token) {
         }
         return false;
     }
+
+
     $(() => {
         const current = parseCurrentGitHubLocation();
         if (!current.issue) {
             console.log('Not an issue page.');
             return;
         }
+
         function createQuickTriageButton() {
             return doIfFound('#partial-discussion-sidebar', sidebar => {
-                return createGithubButton('Quick Triage').prependTo(sidebar).click(() => __awaiter(this, void 0, void 0, function* () {
+                return createGithubButton('Quick Triage').prependTo(sidebar).click(async () => {
                     const popover = createPopover();
-                    const issue = yield getGitHub(current.repo, 'issues/' + current.issue);
+
+                    const issue = await getGitHub(current.repo, 'issues/' + current.issue);
                     const labels = issueLabels(issue);
                     const classif = classificationFromLabels(labels);
                     console.log(issue);
+
                     const form = Table();
                     form.addRow('Type', [
                         ...createRadioButton('type', 'bug', 'Bug'),
                         ...createRadioButton('type', 'fr', 'Feature'),
                         ...createRadioButton('type', 'guidance', 'Guidance'),
                     ]);
+
                     const grid = Table().addClass('grid');
                     grid.addRow('', 'Small', 'Medium', 'Large');
-                    grid.addRow('P1', createNakedRadio('klz', 'p1-s'), createNakedRadio('klz', 'p1-m'), createNakedRadio('klz', 'p1-l'));
-                    grid.addRow('P2', createNakedRadio('klz', 'p2-s'), createNakedRadio('klz', 'p2-m'), createNakedRadio('klz', 'p2-l'));
+                    grid.addRow('P1',
+                                createNakedRadio('klz', 'p1-s'),
+                                createNakedRadio('klz', 'p1-m'),
+                                createNakedRadio('klz', 'p1-l'));
+                    grid.addRow('P2',
+                                createNakedRadio('klz', 'p2-s'),
+                                createNakedRadio('klz', 'p2-m'),
+                                createNakedRadio('klz', 'p2-l'));
+
                     form.addRow('Classification', grid);
+
                     form.addRow('', createCheckBox('gfi', 'gfi', 'Good first issue'));
                     form.addRow('', createCheckBox('unassign', 'unassign', 'Unassign me', true));
+
                     form.addRow('Comment', $('<textarea>').attr('rows', 3).attr('id', 'comment'));
+
                     // UI from Classification
                     form.find(`[id=type-${classif.type}]`).attr('checked', 'true');
                     form.find(`[id=klz-${classif.prio}-${classif.size}]`).attr('checked', 'true');
                     if (classif.gfi) {
                         form.find(`[id=gfi]`).attr('checked', 'true');
                     }
+
                     popover.form.append(form);
-                    popover.form.append(createGithubButton('Confirm', true).click(() => __awaiter(this, void 0, void 0, function* () {
-                        var _a;
+                    popover.form.append(createGithubButton('Confirm', true).click(async () => {
                         try {
                             // Classification from UI
-                            const klz = (_a = form.find("input[name='klz']:checked").val()) === null || _a === void 0 ? void 0 : _a.split('-');
-                            const newClassif = {
-                                type: form.find("input[name='type']:checked").val(),
-                                prio: klz === null || klz === void 0 ? void 0 : klz[0],
-                                size: klz === null || klz === void 0 ? void 0 : klz[1],
-                                gfi: form.find("input[name='gfi']:checked").attr('checked'),
+                            const klz = (form.find("input[name='klz']:checked").val() as string | undefined)?.split('-');
+                            const newClassif: Classification = {
+                                type: form.find("input[name='type']:checked").val() as string,
+                                prio: klz?.[0],
+                                size: klz?.[1],
+                                gfi: form.find("input[name='gfi']:checked").attr('checked') as string,
                             };
                             const unassignMe = form.find('input[name=unassign]').attr('checked');
                             const addComment = form.find('#comment').val();
+
                             const newLabels = [...labels, ...labelsFromClassification(newClassif)]
-                                // Remove needs-triage as well
+                            // Remove needs-triage as well
                                 .filter(n => n !== 'needs-triage');
+
+
                             console.log(newClassif, newLabels);
-                            yield postGitHub(current.repo, 'issues/' + current.issue, {
+
+                            await postGitHub(current.repo, 'issues/' + current.issue, {
                                 labels: newLabels.map(l => ({
-                                    name: l
+                                                            name: l
                                 })),
                             });
-                            if (unassignMe && issue.assignees.some((a) => a.login === username)) {
-                                yield postGitHub(current.repo, `issues/${current.issue}/assignees`, {
+
+                            if (unassignMe && (issue as any).assignees.some((a: any) => a.login === username)) {
+                                await postGitHub(current.repo, `issues/${current.issue}/assignees`, {
                                     assignees: [username],
                                 }, 'DELETE');
                             }
+
                             if (addComment) {
-                                yield postGitHub(current.repo, `issues/${current.issue}/comments`, {
+                                await postGitHub(current.repo, `issues/${current.issue}/comments`, {
                                     body: addComment,
                                 });
                             }
+
                             popover.close();
-                        }
-                        catch (e) {
+                        } catch(e: any) {
                             popover.showError(e.message);
                         }
-                    })));
+                    }));
                     popover.form.append(createGithubButton('Cancel').click(() => popover.close()));
-                }));
+                });
             });
         }
+
         // GitHub sometimes does client-side page rebuilds (when you post a comment etc) which removes our
         // button. Periodically check if it's still there and recreate it if not.
         let button = createQuickTriageButton();
+
         setInterval(() => {
             if (button && !isAttachedToDOM(button)) {
                 button = createQuickTriageButton();
             }
         }, 1000);
     });
-    function isAttachedToDOM(ref) {
+
+    function isAttachedToDOM(ref: JQuery) {
         return ref.parents(":last").is("html");
     }
+
     //--- Style our newly added elements using CSS.
     GM_addStyle(`
 .cdk-overlay {
@@ -379,5 +403,12 @@ function startGitHubIntegration(username, token) {
 .cdk-form textarea {
   width: 100%;
 }
-`);
+` );
+}
+
+interface Classification {
+    readonly type?: string;
+    readonly prio?: string;
+    readonly size?: string;
+    readonly gfi?: string | boolean;
 }

@@ -1,0 +1,25 @@
+{
+  "name": "cdk-github-greasemonkey",
+  "version": "1.0.0",
+  "description": "GreaseMonkey scripts for CDK ticket workflows.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rix0rrr/cdk-github-greasemonkey.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rix0rrr/cdk-github-greasemonkey/issues"
+  },
+  "homepage": "https://github.com/rix0rrr/cdk-github-greasemonkey#readme",
+  "devDependencies": {
+    "@types/greasemonkey": "^4.0.2",
+    "@types/jquery": "^3.5.13",
+    "typescript": "^4.5.5"
+  }
+}
