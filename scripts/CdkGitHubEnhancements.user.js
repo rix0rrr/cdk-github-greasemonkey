@@ -62,11 +62,12 @@ function startGitHubIntegration(username, token) {
     }
     function createPopover() {
         const popover = $('<div class="cdk-overlay"></div>');
-        const form = $('<div class="cdk-form"></div>').appendTo(popover);
-        const errorField = $('<div>').addClass('cdk-error').css({ display: 'none' }).appendTo(form);
+        const modal = $('<div class="cdk-form"></div>').appendTo(popover);
+        const tabs = new Tabs(modal);
+        const errorField = $('<div>').addClass('cdk-error').css({ display: 'none' }).appendTo(modal);
         $(document.body).append(popover);
         return {
-            form,
+            tabs,
             close: () => popover.remove(),
             showError: (msg) => {
                 errorField.text(msg).show();
@@ -154,7 +155,7 @@ function startGitHubIntegration(username, token) {
         ];
     }
     function issueLabels(issue) {
-        return issue.labels.map((i) => i.name);
+        return issue.labels.map(i => i.name);
     }
     /**
      * Determine a classification from the given labels and remove the used labels from the list
@@ -226,74 +227,96 @@ function startGitHubIntegration(username, token) {
             console.log('Not an issue page.');
             return;
         }
+        let LABEL_CACHE;
+        function readAllLabels() {
+            return __awaiter(this, void 0, void 0, function* () {
+                if (LABEL_CACHE) {
+                    return LABEL_CACHE;
+                }
+                return new Promise((ok, ko) => {
+                    LABEL_CACHE = [];
+                    function getPage(nr) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            try {
+                                const page = yield getGitHub(current.repo, `labels?per_page=100&page=${nr}`);
+                                LABEL_CACHE === null || LABEL_CACHE === void 0 ? void 0 : LABEL_CACHE.push(...page);
+                                if (page.length < 100) {
+                                    ok(LABEL_CACHE);
+                                }
+                                else {
+                                    getPage(nr + 1);
+                                }
+                            }
+                            catch (e) {
+                                ko(e);
+                            }
+                        });
+                    }
+                    getPage(1);
+                });
+            });
+        }
         function createQuickTriageButton() {
             return doIfFound('#partial-discussion-sidebar', sidebar => {
                 return createGithubButton('Quick Triage').prependTo(sidebar).click(() => __awaiter(this, void 0, void 0, function* () {
                     const popover = createPopover();
                     const issue = yield getGitHub(current.repo, 'issues/' + current.issue);
-                    const labels = issueLabels(issue);
-                    const classif = classificationFromLabels(labels);
-                    console.log(issue);
-                    const form = Table();
-                    form.addRow('Type', [
-                        ...createRadioButton('type', 'bug', 'Bug'),
-                        ...createRadioButton('type', 'fr', 'Feature'),
-                        ...createRadioButton('type', 'guidance', 'Guidance'),
-                    ]);
-                    const grid = Table().addClass('grid');
-                    grid.addRow('', 'Small', 'Medium', 'Large');
-                    grid.addRow('P1', createNakedRadio('klz', 'p1-s'), createNakedRadio('klz', 'p1-m'), createNakedRadio('klz', 'p1-l'));
-                    grid.addRow('P2', createNakedRadio('klz', 'p2-s'), createNakedRadio('klz', 'p2-m'), createNakedRadio('klz', 'p2-l'));
-                    form.addRow('Classification', grid);
-                    form.addRow('', createCheckBox('gfi', 'gfi', 'Good first issue'));
-                    form.addRow('', createCheckBox('unassign', 'unassign', 'Unassign me', true));
-                    form.addRow('Comment', $('<textarea>').attr('rows', 3).attr('id', 'comment'));
-                    // UI from Classification
-                    form.find(`[id=type-${classif.type}]`).attr('checked', 'true');
-                    form.find(`[id=klz-${classif.prio}-${classif.size}]`).attr('checked', 'true');
-                    if (classif.gfi) {
-                        form.find(`[id=gfi]`).attr('checked', 'true');
-                    }
-                    popover.form.append(form);
-                    popover.form.append(createGithubButton('Confirm', true).click(() => __awaiter(this, void 0, void 0, function* () {
-                        var _a;
-                        try {
-                            // Classification from UI
-                            const klz = (_a = form.find("input[name='klz']:checked").val()) === null || _a === void 0 ? void 0 : _a.split('-');
-                            const newClassif = {
-                                type: form.find("input[name='type']:checked").val(),
-                                prio: klz === null || klz === void 0 ? void 0 : klz[0],
-                                size: klz === null || klz === void 0 ? void 0 : klz[1],
-                                gfi: form.find("input[name='gfi']:checked").attr('checked'),
-                            };
-                            const unassignMe = form.find('input[name=unassign]').attr('checked');
-                            const addComment = form.find('#comment').val();
-                            const newLabels = [...labels, ...labelsFromClassification(newClassif)]
-                                // Remove needs-triage as well
-                                .filter(n => n !== 'needs-triage');
-                            console.log(newClassif, newLabels);
-                            yield postGitHub(current.repo, 'issues/' + current.issue, {
-                                labels: newLabels.map(l => ({
-                                    name: l
-                                })),
+                    const host = {
+                        close() {
+                            popover.close();
+                        },
+                        showError(message) {
+                            popover.showError(message);
+                        },
+                        readAllLabels,
+                        addComment(comment) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                yield postGitHub(current.repo, `issues/${current.issue}/comments`, {
+                                    body: comment,
+                                });
                             });
-                            if (unassignMe && issue.assignees.some((a) => a.login === username)) {
+                        },
+                        removeMyAssignment() {
+                            return __awaiter(this, void 0, void 0, function* () {
                                 yield postGitHub(current.repo, `issues/${current.issue}/assignees`, {
                                     assignees: [username],
                                 }, 'DELETE');
-                            }
-                            if (addComment) {
-                                yield postGitHub(current.repo, `issues/${current.issue}/comments`, {
-                                    body: addComment,
+                            });
+                        },
+                        updateLabels(labels) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                yield postGitHub(current.repo, 'issues/' + current.issue, {
+                                    labels: labels.map(l => ({ name: l })),
                                 });
-                            }
-                            popover.close();
+                            });
+                        },
+                        confirm(cb) {
+                            return () => __awaiter(this, void 0, void 0, function* () {
+                                try {
+                                    yield cb();
+                                    this.close();
+                                }
+                                catch (e) {
+                                    this.showError(e.message);
+                                }
+                            });
+                        },
+                        confirmCancel(container, caption, cb) {
+                            const confirmBtn = createGithubButton(caption, true).on('click', host.confirm(() => __awaiter(this, void 0, void 0, function* () {
+                                confirmBtn.prop('disabled', true);
+                                try {
+                                    yield cb();
+                                }
+                                finally {
+                                    confirmBtn.prop('disabled', false);
+                                }
+                            })));
+                            container.append(confirmBtn);
+                            container.append(createGithubButton('Cancel').on('click', () => host.close()));
                         }
-                        catch (e) {
-                            popover.showError(e.message);
-                        }
-                    })));
-                    popover.form.append(createGithubButton('Cancel').click(() => popover.close()));
+                    };
+                    addClassifyForm(popover.tabs.addTab('Code Issue'), issue, host);
+                    addResponseRequestedForm(popover.tabs.addTab('Request Clarification'), issue, host);
                 }));
             });
         }
@@ -308,6 +331,74 @@ function startGitHubIntegration(username, token) {
     });
     function isAttachedToDOM(ref) {
         return ref.parents(":last").is("html");
+    }
+    function addClassifyForm(container, issue, host) {
+        const labels = issueLabels(issue);
+        const classif = classificationFromLabels(labels);
+        console.log(issue);
+        const form = Table();
+        form.addRow('Type', [
+            ...createRadioButton('type', 'bug', 'Bug'),
+            ...createRadioButton('type', 'fr', 'Feature'),
+            ...createRadioButton('type', 'guidance', 'Guidance'),
+        ]);
+        const grid = Table().addClass('grid');
+        grid.addRow('', 'Small', 'Medium', 'Large');
+        grid.addRow('P1', createNakedRadio('klz', 'p1-s'), createNakedRadio('klz', 'p1-m'), createNakedRadio('klz', 'p1-l'));
+        grid.addRow('P2', createNakedRadio('klz', 'p2-s'), createNakedRadio('klz', 'p2-m'), createNakedRadio('klz', 'p2-l'));
+        form.addRow('Classification', grid);
+        form.addRow('', createCheckBox('gfi', 'gfi', 'Good first issue'));
+        form.addRow('', createCheckBox('unassign', 'unassign', 'Unassign me', true));
+        form.addRow('Comment', $('<textarea>').attr('rows', 3).attr('id', 'comment').css({ width: '100%' }));
+        // UI from Classification
+        form.find(`[id=type-${classif.type}]`).prop('checked', true);
+        form.find(`[id=klz-${classif.prio}-${classif.size}]`).prop('checked', true);
+        if (classif.gfi) {
+            form.find(`[id=gfi]`).prop('checked', true);
+        }
+        container.append(form);
+        host.confirmCancel(container, 'Classify', () => __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            // Classification from UI
+            const klz = (_a = form.find("input[name='klz']:checked").val()) === null || _a === void 0 ? void 0 : _a.split('-');
+            const newClassif = {
+                type: form.find("input[name='type']:checked").val(),
+                prio: klz === null || klz === void 0 ? void 0 : klz[0],
+                size: klz === null || klz === void 0 ? void 0 : klz[1],
+                gfi: form.find("input[name='gfi']:checked").prop('checked'),
+            };
+            const unassignMe = form.find('input[name=unassign]').prop('checked');
+            const addComment = form.find('#comment').val();
+            const newLabels = [...labels, ...labelsFromClassification(newClassif)]
+                // Remove needs-triage as well
+                .filter(n => n !== 'needs-triage');
+            console.log(newClassif, newLabels);
+            yield host.updateLabels(newLabels);
+            if (unassignMe && issue.assignees.some((a) => a.login === username)) {
+                yield host.removeMyAssignment();
+            }
+            if (addComment) {
+                yield host.addComment(addComment);
+            }
+        }));
+    }
+    function addResponseRequestedForm(container, issue, host) {
+        const form = Table();
+        form.addRow('Comment', $('<textarea>').attr('rows', 3).attr('cols', 40).attr('id', 'comment'));
+        container.append(form);
+        host.confirmCancel(container, 'Request response', () => __awaiter(this, void 0, void 0, function* () {
+            const addComment = form.find('#comment').val();
+            if (addComment) {
+                yield host.addComment(addComment);
+            }
+            const allLabels = yield host.readAllLabels();
+            const labels = issueLabels(issue);
+            const rrLabel = allLabels.find(l => l.name.toLowerCase().includes('response') && l.name.toLowerCase().includes('request'));
+            if (rrLabel && !labels.includes(rrLabel.name)) {
+                labels.push(rrLabel.name);
+            }
+            yield host.updateLabels(labels);
+        }));
     }
     //--- Style our newly added elements using CSS.
     GM_addStyle(`
@@ -343,6 +434,12 @@ function startGitHubIntegration(username, token) {
   border: solid 1px grey;
 }
 
+.cdk-form .UnderlineNav {
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: -10px;
+}
+
 .cdk-form .cdk-error {
     border: solid 1px red;
     color: red;
@@ -371,6 +468,10 @@ function startGitHubIntegration(username, token) {
     font-weight: bold;
 }
 
+.cdk-form .UnderlineNav-item {
+    cursor: pointer;
+}
+
 .cdk-form .grid input[type="radio"] {
     width: 1em;
     height: 1em;
@@ -380,4 +481,36 @@ function startGitHubIntegration(username, token) {
   width: 100%;
 }
 `);
+}
+/**
+ * Tabs, borrowing styles from the containing GitHub page
+ */
+class Tabs {
+    constructor(container) {
+        this.first = true;
+        this.tabContainer = $('<ul>').addClass('UnderlineNav').addClass('list-style-none').appendTo(container);
+        this.bodyContainer = $('<div>').css({ marginTop: 10 }).appendTo(container);
+    }
+    addTab(title) {
+        const titleEl = $('<li>').addClass('d-inline-flex').addClass('UnderlineNav-item').appendTo(this.tabContainer).text(title);
+        const bodyEl = $('<div>').appendTo(this.bodyContainer);
+        titleEl.on('click', () => {
+            this.flipTo(titleEl, bodyEl);
+        });
+        if (this.first) {
+            titleEl.addClass('selected');
+        }
+        else {
+            titleEl.hide();
+            bodyEl.hide();
+        }
+        this.first = false;
+        return bodyEl;
+    }
+    flipTo(titleEl, bodyEl) {
+        $(this.tabContainer).children().removeClass('selected');
+        titleEl.addClass('selected');
+        $(this.bodyContainer).children().hide();
+        bodyEl.show();
+    }
 }
